@@ -91,8 +91,26 @@ ProcSubset=pid
 WantedBy=default.target
 EOF
 chown -R hermes:hermes /home/hermes/.config
-su - hermes -c 'systemctl --user enable -q --now hermes-dashboard'
 msg_ok "Created Dashboard Service"
+
+msg_info "Creating Dashboard Shim Service"
+cat <<EOF >/etc/systemd/system/hermes-dashboard.service
+[Unit]
+Description=Shim for Hermes Agent Web Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/usr/bin/su - hermes -c '/usr/bin/systemctl --user start hermes-dashboard.service'
+ExecStop=/usr/bin/su - hermes -c '/usr/bin/systemctl --user stop hermes-dashboard.service'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable -q --now hermes-dashboard
+msg_ok "Created Dashboard Shim Service"
 
 msg_info "Creating Setup Helper"
 cat <<'SETUP' >/usr/bin/hermes-setup

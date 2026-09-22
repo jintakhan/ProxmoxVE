@@ -43,7 +43,7 @@ function update_script() {
     exit 10
   fi
 
-  if [ -f /etc/systemd/system/hermes-dashboard.service ]; then
+  if grep -q "ExecStart=/home/hermes/.local/bin/hermes dashboard" /etc/systemd/system/hermes-dashboard.service; then
     msg_info "Migrating Services"
     systemctl stop hermes-dashboard
     systemctl disable hermes-dashboard
@@ -51,18 +51,36 @@ function update_script() {
     mv /etc/systemd/system/hermes-dashboard.service* /home/hermes/.config/systemd/user/
     sed -i '/User=hermes/d' /home/hermes/.config/systemd/user/hermes-dashboard.service
     sed -i '/Group=hermes/d' /home/hermes/.config/systemd/user/hermes-dashboard.service
-    sed -i 's/WantedBy=multi-user.target/WantedBy=default.target/g' /home/hermes/.config/systemd/user/hermes-dashboard.service
+    sed -i 's/multi-user.target/default.target/g' /home/hermes/.config/systemd/user/hermes-dashboard.service
     chown -R hermes:hermes /home/hermes/.config
     su - hermes -c 'systemctl --user enable hermes-dashboard'
+    msg_info "Creating Dashboard Shim Service"
+    cat <<EOF >/etc/systemd/system/hermes-dashboard.service
+[Unit]
+Description=Shim for Hermes Agent Web Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/usr/bin/su - hermes -c '/usr/bin/systemctl --user start hermes-dashboard.service'
+ExecStop=/usr/bin/su - hermes -c '/usr/bin/systemctl --user stop hermes-dashboard.service'
+
+[Install]
+WantedBy=multi-user.target  
+EOF
+    systemctl enable hermes-dashboard
+    msg_ok "Created Dashboard Shim Service"
     msg_info "Migration Complete"
   else
     msg_info "Stopping Services"
-    su - hermes -c 'systemctl --user stop hermes-dashboard'
+    systemctl stop hermes-dashboard
     msg_ok "Stopped Services"
   fi
 
-  msg_info "Updating Hermes Agent"
-  $STD setsid --wait su - hermes -c '
+msg_info "Updating Hermes Agent"
+  $STD setsid --wait bash -c '
     set -a; source /etc/default/hermes; set +a
     /home/hermes/.local/bin/hermes update --yes
   '
@@ -80,7 +98,7 @@ function update_script() {
   msg_ok "Updated Hermes Agent"
 
   msg_info "Starting Services"
-  su - hermes -c 'systemctl --user start hermes-dashboard'
+  systemctl start hermes-dashboard
   msg_ok "Started Services"
   msg_ok "Updated successfully!"
   exit
