@@ -3,15 +3,15 @@ _CS_DEFAULT_URL="https://raw.githubusercontent.com/community-scripts/ProxmoxVE/m
 _cs_boot="${COMMUNITY_SCRIPTS_CORE_DIR:-$(dirname "${BASH_SOURCE[0]}")/../../core}/core/build.func"
 source "$_cs_boot" 2>/dev/null || source <(curl -fsSL "${COMMUNITY_SCRIPTS_CORE_URL:-https://raw.githubusercontent.com/community-scripts/core/main}/core/build.func")
 # Copyright (c) 2021-2026 community-scripts ORG
-# Author: edoardop13
+# Author: MickLesk (CanbiZ)
 # License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
-# Source: https://github.com/favonia/cloudflare-ddns
+# Source: https://github.com/StuffAnThings/qbit_manage
 
-APP="Cloudflare-DDNS"
-var_tags="${var_tags:-network}"
+APP="qBit-Manage"
+var_tags="${var_tags:-arr;torrent}"
 var_cpu="${var_cpu:-1}"
-var_ram="${var_ram:-512}"
-var_disk="${var_disk:-3}"
+var_ram="${var_ram:-1024}"
+var_disk="${var_disk:-4}"
 var_os="${var_os:-debian}"
 var_version="${var_version:-13}"
 var_arm64="${var_arm64:-yes}"
@@ -27,31 +27,20 @@ function update_script() {
   check_container_storage
   check_container_resources
 
-  if [[ ! -f /usr/local/bin/ddns ]]; then
+  if [[ ! -d /opt/qbit-manage ]]; then
     msg_error "No ${APP} Installation Found!"
     exit
   fi
 
-  if check_for_gh_release "cloudflare-ddns" "favonia/cloudflare-ddns"; then
+  if check_for_gh_release "qbit-manage" "StuffAnThings/qbit_manage"; then
     msg_info "Stopping Service"
-    systemctl stop cloudflare-ddns
+    systemctl stop qbit-manage
     msg_ok "Stopped Service"
 
-    CLEAN_INSTALL=1 fetch_and_deploy_gh_release "cloudflare-ddns" "favonia/cloudflare-ddns" "tarball"
-    GO_VERSION="$(grep -m1 '^go ' /opt/cloudflare-ddns/go.mod | awk '{print $2}')" setup_go
-
-    msg_info "Updating ${APP}"
-    cd /opt/cloudflare-ddns
-    export CGO_ENABLED=0 GOOS=linux
-    $STD go build -trimpath -ldflags="-s -w" -o /usr/local/bin/ddns ./cmd/ddns
-    msg_ok "Updated ${APP}"
-
-    msg_info "Removing Build Dependencies"
-    rm -rf /usr/local/go /usr/local/bin/go /usr/local/bin/gofmt /root/go /root/.cache/go-build /opt/cloudflare-ddns
-    msg_ok "Removed Build Dependencies"
+    fetch_and_deploy_gh_release "qbit-manage" "StuffAnThings/qbit_manage" "singlefile" "latest" "/opt/qbit-manage" "qbit-manage-linux-$(arch_resolve amd64 arm64)"
 
     msg_info "Starting Service"
-    systemctl start cloudflare-ddns
+    systemctl start qbit-manage
     msg_ok "Started Service"
     msg_ok "Updated successfully!"
   fi
@@ -61,4 +50,9 @@ function update_script() {
 start
 build_container
 description
-msg_ok "Completed successfully!\n"
+
+msg_ok "Completed Successfully!\n"
+echo -e "${CREATING}${GN}${APP} setup has been successfully initialized!${CL}"
+echo -e "${INFO}${YW}Access it using the following URL:${CL}"
+echo -e "${GATEWAY}${BGN}http://${IP}:8181${CL}"
+echo -e "${INFO}${YW}Point it at your qBittorrent in /opt/qbit-manage_data/config.yml${CL}"
